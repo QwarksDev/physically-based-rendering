@@ -1,5 +1,4 @@
 export default `
-
 precision highp float;
 
 in vec3 in_position;
