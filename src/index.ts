@@ -1,7 +1,9 @@
 import { GUI } from 'dat.gui';
 import { mat4, vec3 } from 'gl-matrix';
 import { Camera } from './camera';
+import { Geometry } from './geometries/geometry';
 import { SphereGeometry } from './geometries/sphere';
+import { TriangleGeometry } from './geometries/triangle';
 import { GLContext } from './gl';
 import { PBRShader } from './shader/pbr-shader';
 import { Texture, Texture2D } from './textures/texture';
@@ -25,7 +27,7 @@ class Application {
   private _context: GLContext;
 
   private _shader: PBRShader;
-  private _geometry: SphereGeometry;
+  private _geometry: Geometry[];
   private _uniforms: Record<string, UniformType | Texture>;
 
   private _textureExample: Texture2D<HTMLElement> | null;
@@ -43,7 +45,7 @@ class Application {
     this._context = new GLContext(canvas);
     this._camera = new Camera();
 
-    this._geometry = new SphereGeometry(0.5, 16, 16);
+    this._geometry = [new SphereGeometry(0.5, 16, 16), new TriangleGeometry()];
     this._uniforms = {
       'uMaterial.albedo': vec3.create(),
       'uModel.localToProjection': mat4.create()
@@ -63,7 +65,9 @@ class Application {
    * Initializes the application.
    */
   async init() {
-    this._context.uploadGeometry(this._geometry);
+    for (var geometry of this._geometry) {
+      this._context.uploadGeometry(geometry);
+    }
     this._context.compileProgram(this._shader);
 
     // Example showing how to load a texture and upload it to GPU.
@@ -126,7 +130,9 @@ class Application {
     );
 
     // Draws the triangle.
-    this._context.draw(this._geometry, this._shader, this._uniforms);
+    for (var geometry of this._geometry) {
+      this._context.draw(geometry, this._shader, this._uniforms);
+    }
   }
 
   /**
