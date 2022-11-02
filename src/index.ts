@@ -16,6 +16,7 @@ interface GUIProperties {
   albedo: number[];
   sky: number[];
   ponctual: boolean;
+  hundred: boolean;
 }
 
 /**
@@ -34,11 +35,13 @@ class Application {
   private _shader: PBRShader;
   private _geometry: Geometry[];
   private _gameobject: GameObject[];
+  private _gameobjecthundred: GameObject[];
   private _light: PointLight[];
   private _uniforms: Record<string, UniformType | Texture>;
 
   private _textureExample: Texture2D<HTMLElement> | null;
   private _iblDiffuseTexture: Texture2D<HTMLElement> | null;
+  private _iblSpecularTexture: Texture2D<HTMLElement> | null;
 
   private _camera: Camera;
 
@@ -54,7 +57,8 @@ class Application {
     this._camera = new Camera();
 
     this._geometry = [
-      new SphereGeometry(0.2, 32, 32)
+      new SphereGeometry(0.2, 32, 32),
+      new SphereGeometry(0.1, 16, 16)
     ];
 
     this._gameobject = [];
@@ -65,17 +69,13 @@ class Application {
       this._gameobject.push(new GameObject(this._geometry[0], tr, m));
     }
 
-    // this._geometry = [
-    //   new SphereGeometry(0.1, 16, 16)
-    // ];
-
-    // this._gameobject = [];
-    // for (let i = 0; i < 100; ++i) {
-    //   let tr = new Transform();
-    //   vec3.set(tr.position, (Math.floor(i / 10) - 4.5) / 4, (i % 10 - 4.5) / 4, -1.5);
-    //   let m = new Material(.8 * Math.floor(i / 10) / 9 + .1, .8 * (i % 10) / 9 + .1);
-    //   this._gameobject.push(new GameObject(this._geometry[0], tr, m));
-    // }
+    this._gameobjecthundred = [];
+    for (let i = 0; i < 100; ++i) {
+      let tr = new Transform();
+      vec3.set(tr.position, (Math.floor(i / 10) - 4.5) / 4, (i % 10 - 4.5) / 4, -1.5);
+      let m = new Material(.95 * Math.floor(i / 10) / 9 + .025, .95 * (i % 10) / 9 + .025);
+      this._gameobjecthundred.push(new GameObject(this._geometry[1], tr, m));
+    }
 
     this._light = [];
     const colors = [ [ 1, 1, 1 ], [ 1, 1, 1 ], [ 1, 1, 1 ], [ 1, 1, 1 ] ];
@@ -106,7 +106,8 @@ class Application {
     this._guiProperties = {
       albedo: [50, 220, 200],
       sky: [25, 25, 25],
-      ponctual: false
+      ponctual: false,
+      hundred: false
     };
 
     this._createGUI();
@@ -127,8 +128,7 @@ class Application {
     );
     if (this._textureExample !== null) {
       this._context.uploadTexture(this._textureExample);
-      // You can then use it directly as a uniform:
-      // ```uniforms.myTexture = this._textureExample;```
+      this._uniforms['p_texture'] = this._textureExample;
     }
 
     this._iblDiffuseTexture = await Texture2D.load(
@@ -137,6 +137,14 @@ class Application {
     if (this._iblDiffuseTexture !== null) {
       this._context.uploadTexture(this._iblDiffuseTexture);
       this._uniforms['d_texture'] = this._iblDiffuseTexture;
+    }
+
+    this._iblSpecularTexture = await Texture2D.load(
+      'assets/env/Alexs_Apt_2k-specular-RGBM.png'
+    );
+    if (this._iblSpecularTexture !== null) {
+      this._context.uploadTexture(this._iblSpecularTexture);
+      this._uniforms['s_texture'] = this._iblSpecularTexture;
     }
   }
 
@@ -197,6 +205,11 @@ class Application {
       camera.localToProjection
     );
 
+    if (props.hundred)
+      for (var gameobject of this._gameobjecthundred) {
+        this._context.draw_gameobject(gameobject, this._shader, this._uniforms);
+      }
+    else
     for (var gameobject of this._gameobject) {
       this._context.draw_gameobject(gameobject, this._shader, this._uniforms);
     }
@@ -222,6 +235,7 @@ class Application {
     gui.addColor(this._guiProperties, 'albedo');
     gui.addColor(this._guiProperties, 'sky');
     gui.add(this._guiProperties, 'ponctual');
+    gui.add(this._guiProperties, 'hundred');
     return gui;
   }
 }

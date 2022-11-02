@@ -12,6 +12,8 @@ in vec3 vNormalWS;
 
 uniform vec3 cameraPosition;
 uniform sampler2D d_texture;
+uniform sampler2D s_texture;
+uniform sampler2D p_texture;
 uniform bool ponctual;
 
 struct Material
@@ -42,10 +44,6 @@ vec4 LinearTosRGB( in vec4 value ) {
     return vec4(mix(pow(value.rgb, vec3(0.41666)) * 1.055 - vec3(0.055), value.rgb * 12.92, vec3(lessThanEqual(value.rgb, vec3(0.0031308)))), value.a);
 }
 
-vec3 RGBMToLinear( in vec4 value ) {
-  return 6.0 * value.rgb * value.a;
-}
-
 vec3 FresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 1e-4, 1.0), 5.0);
@@ -63,14 +61,6 @@ float GeometrySchlickGGX(vec3 normal, vec3 view, float roughness, float k)
 {
     float NdotV = max(dot(normal, view), 0.0);
     return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-// From teacher
-vec2 cartesianToPolar(vec3 n) {
-    vec2 uv;
-    uv.x = atan(n.z, n.x) * RECIPROCAL_PI2 + 0.5;
-    uv.y = asin(n.y) * RECIPROCAL_PI + 0.5;
-    return uv;
 }
 
 void ponctualLights()
@@ -102,31 +92,61 @@ void ponctualLights()
         vec3 ks = F;
         vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
         Lo += (kd + ks * specular) * rad * max(dot(normal, light), 0.0);
-        // vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(normal)));
-        // Lo += (diffuseBRDF + ks * specular) * rad * max(dot(normal, light), 0.0);
     }
     vec3 color = Lo;
     color /= (color + vec3(1.0));
     outFragColor.rgba = LinearTosRGB(vec4(color, 1.0));
 }
 
-void ibl()
+vec3 RGBMToLinear( in vec4 value ) {
+  return 6.0 * value.rgb * value.a;
+}
+
+// From teacher
+vec2 cartesianToPolar(vec3 n) {
+    vec2 uv;
+    uv.x = atan(n.z, n.x) * RECIPROCAL_PI2 + 0.5;
+    uv.y = asin(n.y) * RECIPROCAL_PI + 0.5;
+    return uv;
+}
+
+vec2 specularPolar(vec2 uv, float level) {
+    return vec2(uv.x / pow(2.0, level), uv.y / pow(2.0, level + 1.0) + 1.0 - 1.0 / pow(2.0, level));
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+void imageBasedLighting()
 {
     // **DO NOT** forget to do all your computation in linear space.
-    vec3 albedo = sRGBToLinear(vec4(1.0, 1.0, 1.0, 1)).rgb;
-    float roughness = uMaterial.roughness;
-    float metallic = uMaterial.metallic;
+    vec3 albedo = sRGBToLinear(vec4(1.0, 1.0, 1.0, 1.0)).rgb;
+    float roughness = clamp(uMaterial.roughness, 1e-4, 1.0);
+    float metallic = clamp(uMaterial.metallic, 1e-4, 1.0);
     vec3 normal = normalize(vNormalWS);
     vec3 view = normalize(cameraPosition - vertexPosition);
 
     vec3 h = normalize(normal + view);
 
-    vec3 ks = FresnelSchlick(max(dot(normal, h), 0.0), mix(vec3(0.04), albedo, metallic));
+    vec3 ks = fresnelSchlickRoughness(max(dot(normal, h), 1e-4), mix(vec3(0.04), albedo, metallic), roughness);
     vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
 
     vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(normal)));
 
-    vec3 color = diffuseBRDF;
+    float low_level = floor(roughness * 5.0);
+    float high_level = low_level + 1.0;
+
+    vec2 uv = cartesianToPolar(reflect(-view, normal));
+
+    vec3 low_texture = RGBMToLinear(texture(s_texture, specularPolar(uv, low_level)));
+    vec3 high_texture = RGBMToLinear(texture(s_texture, specularPolar(uv, high_level)));
+
+    vec3 specularBRDF = mix(low_texture, high_texture, 5.0 * roughness - low_level);
+    vec2 brdf = texture(p_texture, vec2(clamp(dot(normal, view), 1e-4, 1.0), roughness)).xy;
+
+    vec3 color = diffuseBRDF + (ks * brdf.x + brdf.y) * specularBRDF;
     color /= (color + vec3(1.0));
 
     outFragColor.rgba = LinearTosRGB(vec4(color, 1.0));
@@ -137,6 +157,6 @@ void main()
     if (ponctual)
         ponctualLights();
     else
-        ibl();
+        imageBasedLighting();
 }
 `;
