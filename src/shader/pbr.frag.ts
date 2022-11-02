@@ -1,6 +1,8 @@
 export default `
 #define LIGHT_COUNT 4
 #define PI 3.14159265359
+#define RECIPROCAL_PI 0.31830988618
+#define RECIPROCAL_PI2 0.15915494
 
 precision highp float;
 
@@ -9,6 +11,7 @@ in vec3 vertexPosition;
 in vec3 vNormalWS;
 
 uniform vec3 cameraPosition;
+uniform sampler2D d_texture;
 
 struct Material
 {
@@ -38,6 +41,10 @@ vec4 LinearTosRGB( in vec4 value ) {
     return vec4(mix(pow(value.rgb, vec3(0.41666)) * 1.055 - vec3(0.055), value.rgb * 12.92, vec3(lessThanEqual(value.rgb, vec3(0.0031308)))), value.a);
 }
 
+vec3 RGBMToLinear( in vec4 value ) {
+  return 6.0 * value.rgb * value.a;
+}
+
 vec3 FresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
@@ -57,6 +64,14 @@ float GeometrySchlickGGX(vec3 normal, vec3 view, float roughness, float k)
     return NdotV / (NdotV * (1.0 - k) + k);
 }
 
+// From teacher
+vec2 cartesianToPolar(vec3 n) {
+    vec2 uv;
+    uv.x = atan(n.z, n.x) * RECIPROCAL_PI2 + 0.5;
+    uv.y = asin(n.y) * RECIPROCAL_PI + 0.5;
+    return uv;
+}
+
 void main()
 {
     // **DO NOT** forget to do all your computation in linear space.
@@ -67,6 +82,7 @@ void main()
     vec3 view = normalize(cameraPosition - vertexPosition);
 
     vec3 Lo = vec3(0, 0, 0);
+    // Iteration over lights
     for (int i = 0; i < LIGHT_COUNT; ++i) {
         vec3 lightPos = light[i].positionWS;
         vec3 lightCol = light[i].color;
@@ -83,12 +99,15 @@ void main()
         vec3 F = FresnelSchlick(max(dot(halfVector, view), 0.0), mix(vec3(0.04), albedo, metallic));
         float G = GeometrySchlickGGX(normal, view, roughness, (roughness * roughness) / 2.0) * GeometrySchlickGGX(normal, light, roughness, (roughness * roughness) / 2.0);
 
-        vec3 specular = D * F * G / (4.0 * max(dot(normal, view), 0.0) * max(dot(normal, light), 0.0) + 1e-6); // We add 1e-6 to avoid division by zero.
+        // We add 1e-6 to avoid division by zero.
+        vec3 specular = D * F * G / (4.0 * max(dot(normal, view), 0.0) * max(dot(normal, light), 0.0) + 1e-6);
 
         vec3 ks = F;
-        vec3 kd = (1.0 - ks) * (1.0 - metallic);
-
-        Lo += (kd * albedo / PI + ks * specular) * rad * max(dot(normal, light), 0.0);
+        vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
+        Lo += (kd + ks * specular) * rad * max(dot(normal, light), 0.0);
+        // Couldn't figure why it gives me strange results
+        // vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(-normal)));
+        // Lo += (diffuseBRDF + ks * specular) * rad * max(dot(normal, light), 0.0);
     }
 
     vec3 color = Lo;

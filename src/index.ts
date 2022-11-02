@@ -37,6 +37,7 @@ class Application {
   private _uniforms: Record<string, UniformType | Texture>;
 
   private _textureExample: Texture2D<HTMLElement> | null;
+  private _iblDiffuseTexture: Texture2D<HTMLElement> | null;
 
   private _camera: Camera;
 
@@ -126,6 +127,14 @@ class Application {
       this._context.uploadTexture(this._textureExample);
       // You can then use it directly as a uniform:
       // ```uniforms.myTexture = this._textureExample;```
+    }
+
+    this._iblDiffuseTexture = await Texture2D.load(
+      'assets/env/Alexs_Apt_2k-diffuse-RGBM.png'
+    );
+    if (this._iblDiffuseTexture !== null) {
+      // You can then use it directly as a uniform:
+      this._uniforms['d_texture'] = this._iblDiffuseTexture;
     }
   }
 
