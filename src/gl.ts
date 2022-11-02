@@ -1,3 +1,5 @@
+import { mat4 } from 'gl-matrix';
+import { GameObject } from './gameobject';
 import { Geometry } from './geometries/geometry';
 import { Shader } from './shader/shader';
 import { Texture, Texture2D } from './textures/texture';
@@ -121,6 +123,10 @@ export class GLContext {
       gl.disable(gl.DEPTH_TEST);
     }
     return this;
+  }
+
+  public setClearColor(r: number, g: number, b: number, a: number) {
+    this._gl.clearColor(r, g, b, a);
   }
 
   /**
@@ -329,6 +335,20 @@ export class GLContext {
     if (cache.fragmentObjectGL) {
       gl.deleteShader(cache.fragmentObjectGL);
     }
+  }
+
+  public draw_gameobject(
+    gameobject: GameObject,
+    shader: Shader,
+    uniforms: Record<string, UniformType | Texture>
+  ) {
+    mat4.copy(
+      uniforms['uModel.translation'] as mat4,
+      gameobject.transform.combine()
+    );
+    uniforms['uMaterial.roughness'] = gameobject.material.roughness;
+    uniforms['uMaterial.metallic'] = gameobject.material.metallic;
+    this.draw(gameobject.geometry, shader, uniforms);
   }
 
   /**

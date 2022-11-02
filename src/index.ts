@@ -1,16 +1,20 @@
 import { GUI } from 'dat.gui';
 import { mat4, vec3 } from 'gl-matrix';
 import { Camera } from './camera';
+import { GameObject } from './gameobject';
 import { Geometry } from './geometries/geometry';
 import { SphereGeometry } from './geometries/sphere';
-import { TriangleGeometry } from './geometries/triangle';
 import { GLContext } from './gl';
+import { PointLight } from './lights/lights';
 import { PBRShader } from './shader/pbr-shader';
 import { Texture, Texture2D } from './textures/texture';
+import { Material } from './textures/material';
+import { Transform } from './transform';
 import { UniformType } from './types';
 
 interface GUIProperties {
   albedo: number[];
+  sky: number[];
 }
 
 /**
@@ -21,13 +25,15 @@ interface GUIProperties {
 class Application {
   /**
    * Context used to draw to the canvas
-   *
+  
    * @private
    */
   private _context: GLContext;
 
   private _shader: PBRShader;
   private _geometry: Geometry[];
+  private _gameobject: GameObject[];
+  private _light: PointLight[];
   private _uniforms: Record<string, UniformType | Texture>;
 
   private _textureExample: Texture2D<HTMLElement> | null;
@@ -45,17 +51,59 @@ class Application {
     this._context = new GLContext(canvas);
     this._camera = new Camera();
 
-    this._geometry = [new SphereGeometry(0.5, 16, 16), new TriangleGeometry()];
+    this._geometry = [
+      new SphereGeometry(0.2, 32, 32)
+    ];
+
+    this._gameobject = [];
+    for (let i = 0; i < 25; ++i) {
+      let tr = new Transform();
+      vec3.set(tr.position, (Math.floor(i / 5) - 2) / 2, (i % 5 - 2) / 2, -1.5);
+      let m = new Material(.95 * Math.floor(i / 5) / 4 + .025, .95 * (i % 5) / 4 + .025);
+      this._gameobject.push(new GameObject(this._geometry[0], tr, m));
+    }
+
+    // this._geometry = [
+    //   new SphereGeometry(0.1, 16, 16)
+    // ];
+
+    // this._gameobject = [];
+    // for (let i = 0; i < 100; ++i) {
+    //   let tr = new Transform();
+    //   vec3.set(tr.position, (Math.floor(i / 10) - 4.5) / 4, (i % 10 - 4.5) / 4, -1.5);
+    //   let m = new Material(.8 * Math.floor(i / 10) / 9 + .1, .8 * (i % 10) / 9 + .1);
+    //   this._gameobject.push(new GameObject(this._geometry[0], tr, m));
+    // }
+
+    this._light = [];
+    const colors = [ [ 1, 1, 1 ], [ 1, 1, 1 ], [ 1, 1, 1 ], [ 1, 1, 1 ] ];
+    for (let i = 0; i < 4; ++i) {
+      let light = new PointLight();
+      vec3.set(light.positionWS, 2.5 * (i % 2 - .5), 2.5 * (Math.floor(i / 2) % 2 - .5), 0);
+      vec3.set(light.color, colors[i][0], colors[i][1], colors[i][2]);
+      light.intensity = .25;
+      this._light.push(light);
+    }
+
     this._uniforms = {
       'uMaterial.albedo': vec3.create(),
-      'uModel.localToProjection': mat4.create()
+      'uModel.localToProjection': mat4.create(),
+      'uModel.translation': mat4.create(),
+      'cameraPosition': this._camera.transform.position
     };
+
+    for (let i = 0; i < 4; ++i) {
+      this._uniforms[`light[${i}].positionWS`] = this._light[i].positionWS;
+      this._uniforms[`light[${i}].color`] = this._light[i].color;
+      this._uniforms[`light[${i}].intensity`] = this._light[i].intensity;
+    }
 
     this._shader = new PBRShader();
     this._textureExample = null;
 
     this._guiProperties = {
-      albedo: [255, 255, 255]
+      albedo: [50, 220, 200],
+      sky: [25, 25, 25]
     };
 
     this._createGUI();
@@ -99,8 +147,16 @@ class Application {
    * Called at every loop, after the [[Application.update]] method.
    */
   render() {
+    const props = this._guiProperties;
+
     this._context.clear();
     this._context.setDepthTest(true);
+    this._context.setClearColor(
+      props.sky[0] / 255,
+      props.sky[1] / 255,
+      props.sky[2] / 255,
+      1.0
+    );
     // this._context.setCulling(WebGL2RenderingContext.BACK);
 
     const aspect =
@@ -111,8 +167,6 @@ class Application {
     vec3.set(camera.transform.position, 0.0, 0.0, 2.0);
     camera.setParameters(aspect);
     camera.update();
-
-    const props = this._guiProperties;
 
     // Set the color from the GUI into the uniform list.
     vec3.set(
@@ -129,10 +183,13 @@ class Application {
       camera.localToProjection
     );
 
-    // Draws the triangle.
-    for (var geometry of this._geometry) {
-      this._context.draw(geometry, this._shader, this._uniforms);
+    for (var gameobject of this._gameobject) {
+      this._context.draw_gameobject(gameobject, this._shader, this._uniforms);
     }
+    mat4.copy(
+      this._uniforms['uModel.translation'] as mat4,
+      mat4.create()
+    );
   }
 
   /**
@@ -149,6 +206,7 @@ class Application {
   private _createGUI(): GUI {
     const gui = new GUI();
     gui.addColor(this._guiProperties, 'albedo');
+    gui.addColor(this._guiProperties, 'sky');
     return gui;
   }
 }
