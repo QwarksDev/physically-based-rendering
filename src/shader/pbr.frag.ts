@@ -97,16 +97,17 @@ void main()
 
         float D = DistributionGGX(normal, halfVector, roughness);
         vec3 F = FresnelSchlick(max(dot(halfVector, view), 0.0), mix(vec3(0.04), albedo, metallic));
-        float G = GeometrySchlickGGX(normal, view, roughness, (roughness * roughness) / 2.0) * GeometrySchlickGGX(normal, light, roughness, (roughness * roughness) / 2.0);
+        float G = GeometrySchlickGGX(normal, view, roughness, (roughness * roughness) / 2.0) *
+            GeometrySchlickGGX(normal, light, roughness, (roughness * roughness) / 2.0);
 
         // We add 1e-6 to avoid division by zero.
-        vec3 specular = D * F * G / (4.0 * max(dot(normal, view), 0.0) * max(dot(normal, light), 0.0) + 1e-6);
+        vec3 specular = D * F * G /
+            (4.0 * max(dot(normal, view), 0.0) * max(dot(normal, light), 0.0) + 1e-6);
 
         vec3 ks = F;
         vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
         Lo += (kd + ks * specular) * rad * max(dot(normal, light), 0.0);
-        // Couldn't figure why it gives me strange results
-        // vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(-normal)));
+        // vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(normal)));
         // Lo += (diffuseBRDF + ks * specular) * rad * max(dot(normal, light), 0.0);
     }
 
@@ -114,6 +115,6 @@ void main()
     color /= (color + vec3(1.0));
     color = pow(color, vec3(0.5));
 
-    outFragColor.rgba = LinearTosRGB(vec4(color, 1));
+    outFragColor.rgba = LinearTosRGB(vec4(color, 1.0));
 }
 `;

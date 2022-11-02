@@ -133,7 +133,6 @@ class Application {
       'assets/env/Alexs_Apt_2k-diffuse-RGBM.png'
     );
     if (this._iblDiffuseTexture !== null) {
-      // You can then use it directly as a uniform:
       this._uniforms['d_texture'] = this._iblDiffuseTexture;
     }
   }
