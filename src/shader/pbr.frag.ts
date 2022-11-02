@@ -12,6 +12,7 @@ in vec3 vNormalWS;
 
 uniform vec3 cameraPosition;
 uniform sampler2D d_texture;
+uniform bool ponctual;
 
 struct Material
 {
@@ -47,7 +48,7 @@ vec3 RGBMToLinear( in vec4 value ) {
 
 vec3 FresnelSchlick(float cosTheta, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 1e-4, 1.0), 5.0);
 }
 
 float DistributionGGX(vec3 normal, vec3 halfVector, float roughness)
@@ -72,7 +73,7 @@ vec2 cartesianToPolar(vec3 n) {
     return uv;
 }
 
-void main()
+void ponctualLights()
 {
     // **DO NOT** forget to do all your computation in linear space.
     vec3 albedo = sRGBToLinear(vec4(uMaterial.albedo, 1)).rgb;
@@ -80,41 +81,62 @@ void main()
     float metallic = uMaterial.metallic;
     vec3 normal = normalize(vNormalWS);
     vec3 view = normalize(cameraPosition - vertexPosition);
-
     vec3 Lo = vec3(0, 0, 0);
     // Iteration over lights
     for (int i = 0; i < LIGHT_COUNT; ++i) {
         vec3 lightPos = light[i].positionWS;
         vec3 lightCol = light[i].color;
         float lightIntensity = light[i].intensity;
-
         vec3 light = normalize(lightPos - vertexPosition);
         vec3 halfVector = normalize(light + view);
-
         float dist = length(lightPos - vertexPosition);
         float att = 1.0 / (dist * dist);
         vec3 rad = lightCol * att;
-
         float D = DistributionGGX(normal, halfVector, roughness);
         vec3 F = FresnelSchlick(max(dot(halfVector, view), 0.0), mix(vec3(0.04), albedo, metallic));
         float G = GeometrySchlickGGX(normal, view, roughness, (roughness * roughness) / 2.0) *
             GeometrySchlickGGX(normal, light, roughness, (roughness * roughness) / 2.0);
-
         // We add 1e-6 to avoid division by zero.
         vec3 specular = D * F * G /
             (4.0 * max(dot(normal, view), 0.0) * max(dot(normal, light), 0.0) + 1e-6);
-
         vec3 ks = F;
         vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
         Lo += (kd + ks * specular) * rad * max(dot(normal, light), 0.0);
         // vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(normal)));
         // Lo += (diffuseBRDF + ks * specular) * rad * max(dot(normal, light), 0.0);
     }
-
     vec3 color = Lo;
     color /= (color + vec3(1.0));
-    color = pow(color, vec3(0.5));
+    outFragColor.rgba = LinearTosRGB(vec4(color, 1.0));
+}
+
+void ibl()
+{
+    // **DO NOT** forget to do all your computation in linear space.
+    vec3 albedo = sRGBToLinear(vec4(1.0, 1.0, 1.0, 1)).rgb;
+    float roughness = uMaterial.roughness;
+    float metallic = uMaterial.metallic;
+    vec3 normal = normalize(vNormalWS);
+    vec3 view = normalize(cameraPosition - vertexPosition);
+
+    vec3 h = normalize(normal + view);
+
+    vec3 ks = FresnelSchlick(max(dot(normal, h), 0.0), mix(vec3(0.04), albedo, metallic));
+    vec3 kd = (1.0 - ks) * (1.0 - metallic) * albedo;
+
+    vec3 diffuseBRDF = kd * RGBMToLinear(texture(d_texture, cartesianToPolar(normal)));
+
+    vec3 color = diffuseBRDF;
+    color /= (color + vec3(1.0));
 
     outFragColor.rgba = LinearTosRGB(vec4(color, 1.0));
+}
+
+void main()
+{
+    if (ponctual)
+        ponctualLights();
+    else
+        ibl();
 }
 `;

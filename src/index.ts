@@ -15,6 +15,7 @@ import { UniformType } from './types';
 interface GUIProperties {
   albedo: number[];
   sky: number[];
+  ponctual: boolean;
 }
 
 /**
@@ -104,7 +105,8 @@ class Application {
 
     this._guiProperties = {
       albedo: [50, 220, 200],
-      sky: [25, 25, 25]
+      sky: [25, 25, 25],
+      ponctual: false
     };
 
     this._createGUI();
@@ -133,6 +135,7 @@ class Application {
       'assets/env/Alexs_Apt_2k-diffuse-RGBM.png'
     );
     if (this._iblDiffuseTexture !== null) {
+      this._context.uploadTexture(this._iblDiffuseTexture);
       this._uniforms['d_texture'] = this._iblDiffuseTexture;
     }
   }
@@ -183,6 +186,9 @@ class Application {
       props.albedo[1] / 255,
       props.albedo[2] / 255
     );
+
+    this._uniforms['ponctual'] = props.ponctual;
+
     // Sets the viewProjection matrix.
     // **Note**: if you want to modify the position of the geometry, you will
     // need to take the matrix of the mesh into account here.
@@ -215,6 +221,7 @@ class Application {
     const gui = new GUI();
     gui.addColor(this._guiProperties, 'albedo');
     gui.addColor(this._guiProperties, 'sky');
+    gui.add(this._guiProperties, 'ponctual');
     return gui;
   }
 }
