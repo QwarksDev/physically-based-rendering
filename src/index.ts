@@ -53,6 +53,8 @@ class Application {
   private _guiProperties: GUIProperties;
 
   constructor(canvas: HTMLCanvasElement) {
+    this._iblDiffuseTexture = null;
+    this._iblSpecularTexture = null;
     this._context = new GLContext(canvas);
     this._camera = new Camera();
 
